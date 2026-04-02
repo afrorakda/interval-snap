@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Interval Snap</title>
+    
+    <link rel="icon" href="image_60.png">
+    <link rel="apple-touch-icon" href="image_60.png">
+
+    <style>
+        :root {
+            --main: #333;
+            --bg: #fff;
+            --accent: #eee;
+            --radius: 15px;
+            --progress-h: 0%;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--main);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 画面全体をプログレスゲージにする演出 */
+        .progress-overlay {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: var(--progress-h);
+            background-color: #f0f0f0;
+            z-index: -1;
+            transition: height 0.2s linear;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 420px;
+            padding: 40px 20px;
+            box-sizing: border-box;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 8px; letter-spacing: -1px; }
+        .subtitle { font-size: 0.85rem; color: #666; font-weight: 500; margin-bottom: 20px; }
+
+        .timer-display {
+            font-size: 5rem;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            margin: 20px 0;
+            letter-spacing: -2px;
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .snap-btn {
+            background: var(--main);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            padding: 25px 10px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            cursor: pointer;
+            -webkit-appearance: none;
+        }
+        .snap-btn:active { transform: scale(0.95); opacity: 0.9; }
+
+        .extra-btns {
+            display: flex;
+            gap: 12px;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        .action-btn {
+            flex: 1;
+            background: var(--accent);
+            color: var(--main);
+            border: none;
+            border-radius: var(--radius);
+            padding: 15px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        footer { margin-top: auto; font-size: 11px; color: #aaa; line-height: 1.8; }
+        .footer-btns { margin-top: 30px; }
+        .kofi-btn {
+            display: inline-block; background: var(--main); color: #fff;
+            padding: 12px 25px; border-radius: var(--radius);
+            text-decoration: none; font-weight: bold; font-size: 14px; margin-bottom: 12px;
+        }
+        .home-btn {
+            display: block; width: 60%; margin: 0 auto; background: var(--accent);
+            color: var(--main); border: none; padding: 10px;
+            border-radius: var(--radius); font-weight: 700; font-size: 13px; cursor: pointer;
+        }
+
+        #modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 100;
+        }
+        .modal-content {
+            background: #fff; width: 85%; max-width: 320px; padding: 30px;
+            border-radius: var(--radius); text-align: left; position: relative;
+        }
+        .close-x { position: absolute; top: 15px; right: 20px; font-size: 20px; color: #ccc; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="progress-overlay" id="overlay"></div>
+
+<div class="container">
+    <h1>Interval Snap</h1>
+    <p class="subtitle">Tap your rest time and stay focused.</p>
+
+    <div class="timer-display" id="display">00</div>
+
+    <div class="btn-grid">
+        <button class="snap-btn" onclick="startTimer(30)">30s</button>
+        <button class="snap-btn" onclick="startTimer(60)">60s</button>
+        <button class="snap-btn" onclick="startTimer(90)">90s</button>
+    </div>
+
+    <div class="extra-btns">
+        <button class="action-btn" onclick="addTime(10)">+10s</button>
+        <button class="action-btn" onclick="resetTimer()">Reset</button>
+    </div>
+
+    <div class="footer-btns">
+        <a href="https://ko-fi.com/afrorakda" target="_blank" class="kofi-btn">☕️buy me a coffee</a>
+        <button class="home-btn" onclick="showModal()">Add to Home Screen</button>
+    </div>
+
+    <footer>
+        <div>No login / No tracking / No ads / Browser only</div>
+        <div>Privacy Policy / afrorakda © 2026</div>
+    </footer>
+</div>
+
+<div id="modal" onclick="hideModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <span class="close-x" onclick="hideModal()">×</span>
+        <h3>📱 Install</h3>
+        <p>Add to your home screen.</p>
+        <p>🍏 <strong>iPhone (Safari):</strong><br>Tap Share, then Add to Home Screen.</p>
+        <p>🤖 <strong>Android (Chrome):</strong><br>Tap Menu (⋮), then Add to Home Screen.</p>
+    </div>
+</div>
+
+<script>
+    let timeLeft = 0;
+    let totalDuration = 0;
+    let timerId = null;
+    let wakeLock = null;
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    const display = document.getElementById('display');
+    const overlay = document.getElementById('overlay');
+
+    // スリープ防止の有効化
+    async function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+            } catch (err) {
+                console.log(`${err.name}, ${err.message}`);
+            }
+        }
+    }
+
+    // スリープ防止の解除
+    function releaseWakeLock() {
+        if (wakeLock !== null) {
+            wakeLock.release();
+            wakeLock = null;
+        }
+    }
+
+    function startTimer(seconds) {
+        resetTimer();
+        timeLeft = seconds;
+        totalDuration = seconds;
+        updateDisplay();
+        requestWakeLock();
+        
+        timerId = setInterval(() => {
+            timeLeft--;
+            updateDisplay();
+            
+            if (timeLeft <= 0) {
+                finish();
+            }
+        }, 1000);
+    }
+
+    function addTime(seconds) {
+        if (timerId) {
+            timeLeft += seconds;
+            totalDuration += seconds;
+            updateDisplay();
+        }
+    }
+
+    function resetTimer() {
+        clearInterval(timerId);
+        timerId = null;
+        timeLeft = 0;
+        totalDuration = 0;
+        releaseWakeLock();
+        updateDisplay();
+        document.documentElement.style.setProperty('--progress-h', '0%');
+    }
+
+    function updateDisplay() {
+        display.innerText = timeLeft < 10 ? `0${timeLeft}` : timeLeft;
+        const progress = totalDuration > 0 ? (1 - (timeLeft / totalDuration)) * 100 : 0;
+        document.documentElement.style.setProperty('--progress-h', `${progress}%`);
+    }
+
+    function finish() {
+        resetTimer();
+        playBeep();
+        if (navigator.vibrate) {
+            navigator.vibrate([300, 100, 300]);
+        }
+    }
+
+    // ブラウザ内で音声を合成
+    function playBeep() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+        
+        gain.gain.setValueAtTime(0, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+    }
+
+    function showModal() { document.getElementById('modal').style.display = 'flex'; }
+    function hideModal() { document.getElementById('modal').style.display = 'none'; }
+</script>
+
+</body>
+</html>
