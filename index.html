@@ -15,6 +15,7 @@
             --accent: #eee;
             --radius: 15px;
             --progress-h: 0%;
+            --progress-clr: #e8f5e9; /* Default Soft Green */
         }
 
         body {
@@ -29,16 +30,16 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* 画面全体をプログレスゲージにする演出 */
+        /* Visual Progress Overlay */
         .progress-overlay {
             position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
             height: var(--progress-h);
-            background-color: #f0f0f0;
+            background-color: var(--progress-clr);
             z-index: -1;
-            transition: height 0.2s linear;
+            transition: height 1s linear, background-color 0.3s;
         }
 
         .container {
@@ -56,11 +57,11 @@
         .subtitle { font-size: 0.85rem; color: #666; font-weight: 500; margin-bottom: 20px; }
 
         .timer-display {
-            font-size: 5rem;
+            font-size: 5.5rem;
             font-weight: 900;
             font-variant-numeric: tabular-nums;
-            margin: 20px 0;
-            letter-spacing: -2px;
+            margin: 25px 0;
+            letter-spacing: -3px;
         }
 
         .btn-grid {
@@ -77,12 +78,12 @@
             border: none;
             border-radius: var(--radius);
             padding: 25px 10px;
-            font-size: 1.2rem;
+            font-size: 1.3rem;
             font-weight: 800;
             cursor: pointer;
             -webkit-appearance: none;
         }
-        .snap-btn:active { transform: scale(0.95); opacity: 0.9; }
+        .snap-btn:active { transform: scale(0.95); }
 
         .extra-btns {
             display: flex;
@@ -101,6 +102,7 @@
             font-size: 0.9rem;
             font-weight: 700;
             cursor: pointer;
+            -webkit-appearance: none;
         }
 
         footer { margin-top: auto; font-size: 11px; color: #aaa; line-height: 1.8; }
@@ -124,7 +126,7 @@
             background: #fff; width: 85%; max-width: 320px; padding: 30px;
             border-radius: var(--radius); text-align: left; position: relative;
         }
-        .close-x { position: absolute; top: 15px; right: 20px; font-size: 20px; color: #ccc; cursor: pointer; }
+        .close-x { position: absolute; top: 15px; right: 20px; font-size: 24px; color: #ccc; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -174,44 +176,42 @@
     let totalDuration = 0;
     let timerId = null;
     let wakeLock = null;
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let audioCtx = null;
 
     const display = document.getElementById('display');
-    const overlay = document.getElementById('overlay');
 
-    // スリープ防止の有効化
-    async function requestWakeLock() {
-        if ('wakeLock' in navigator) {
-            try {
-                wakeLock = await navigator.wakeLock.request('screen');
-            } catch (err) {
-                console.log(`${err.name}, ${err.message}`);
-            }
+    // iOS Audio Wake-up
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
         }
     }
 
-    // スリープ防止の解除
-    function releaseWakeLock() {
-        if (wakeLock !== null) {
-            wakeLock.release();
-            wakeLock = null;
+    async function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
         }
+    }
+
+    function releaseWakeLock() {
+        if (wakeLock !== null) { wakeLock.release(); wakeLock = null; }
     }
 
     function startTimer(seconds) {
+        initAudio(); // Required for iOS
         resetTimer();
         timeLeft = seconds;
         totalDuration = seconds;
-        updateDisplay();
+        updateUI();
         requestWakeLock();
         
         timerId = setInterval(() => {
             timeLeft--;
-            updateDisplay();
-            
-            if (timeLeft <= 0) {
-                finish();
-            }
+            updateUI();
+            if (timeLeft <= 0) finish();
         }, 1000);
     }
 
@@ -219,7 +219,7 @@
         if (timerId) {
             timeLeft += seconds;
             totalDuration += seconds;
-            updateDisplay();
+            updateUI();
         }
     }
 
@@ -229,31 +229,37 @@
         timeLeft = 0;
         totalDuration = 0;
         releaseWakeLock();
-        updateDisplay();
-        document.documentElement.style.setProperty('--progress-h', '0%');
+        updateUI();
     }
 
-    function updateDisplay() {
+    function updateUI() {
         display.innerText = timeLeft < 10 ? `0${timeLeft}` : timeLeft;
+        
+        // Background Progress
         const progress = totalDuration > 0 ? (1 - (timeLeft / totalDuration)) * 100 : 0;
         document.documentElement.style.setProperty('--progress-h', `${progress}%`);
+        
+        // Color Change: Orange for last 5 seconds
+        if (timeLeft > 0 && timeLeft <= 5) {
+            document.documentElement.style.setProperty('--progress-clr', '#fff3e0');
+        } else {
+            document.documentElement.style.setProperty('--progress-clr', '#e8f5e9');
+        }
     }
 
     function finish() {
         resetTimer();
         playBeep();
-        if (navigator.vibrate) {
-            navigator.vibrate([300, 100, 300]);
-        }
+        if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
     }
 
-    // ブラウザ内で音声を合成
     function playBeep() {
+        if (!audioCtx) return;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
         
         gain.gain.setValueAtTime(0, audioCtx.currentTime);
         gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
