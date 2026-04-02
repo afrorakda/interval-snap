@@ -15,7 +15,7 @@
             --accent: #eee;
             --radius: 15px;
             --progress-h: 0%;
-            --progress-clr: #e8f5e9; /* Default Soft Green */
+            --progress-clr: #e8f5e9;
         }
 
         body {
@@ -30,7 +30,6 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* Visual Progress Overlay */
         .progress-overlay {
             position: fixed;
             bottom: 0;
@@ -180,7 +179,6 @@
 
     const display = document.getElementById('display');
 
-    // iOS Audio Wake-up
     function initAudio() {
         if (!audioCtx) {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -188,6 +186,14 @@
         if (audioCtx.state === 'suspended') {
             audioCtx.resume();
         }
+        // iPhone Audio Unlock: play a tiny silent sound immediately on user interaction
+        const silentOsc = audioCtx.createOscillator();
+        const silentGain = audioCtx.createGain();
+        silentGain.gain.setValueAtTime(0.001, audioCtx.currentTime); // Almost silent
+        silentOsc.connect(silentGain);
+        silentGain.connect(audioCtx.destination);
+        silentOsc.start();
+        silentOsc.stop(audioCtx.currentTime + 0.001);
     }
 
     async function requestWakeLock() {
@@ -201,7 +207,7 @@
     }
 
     function startTimer(seconds) {
-        initAudio(); // Required for iOS
+        initAudio();
         resetTimer();
         timeLeft = seconds;
         totalDuration = seconds;
@@ -234,12 +240,9 @@
 
     function updateUI() {
         display.innerText = timeLeft < 10 ? `0${timeLeft}` : timeLeft;
-        
-        // Background Progress
         const progress = totalDuration > 0 ? (1 - (timeLeft / totalDuration)) * 100 : 0;
         document.documentElement.style.setProperty('--progress-h', `${progress}%`);
         
-        // Color Change: Orange for last 5 seconds
         if (timeLeft > 0 && timeLeft <= 5) {
             document.documentElement.style.setProperty('--progress-clr', '#fff3e0');
         } else {
@@ -257,17 +260,13 @@
         if (!audioCtx) return;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        
         osc.type = 'sine';
         osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-        
         gain.gain.setValueAtTime(0, audioCtx.currentTime);
         gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-        
         osc.connect(gain);
         gain.connect(audioCtx.destination);
-        
         osc.start();
         osc.stop(audioCtx.currentTime + 0.5);
     }
